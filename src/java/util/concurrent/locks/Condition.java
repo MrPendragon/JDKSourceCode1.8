@@ -373,8 +373,9 @@ public interface Condition {
     boolean await(long time, TimeUnit unit) throws InterruptedException;
 
     /**
+     * 当前线程 wait 指定的时间，期间可以被唤醒和被中断<br>
      * Causes the current thread to wait until it is signalled or interrupted,
-     * or the specified deadline elapses.
+     * or the specified deadline elapses.<br>
      *
      * <p>The lock associated with this condition is atomically
      * released and the current thread becomes disabled for thread scheduling
@@ -450,7 +451,7 @@ public interface Condition {
     boolean awaitUntil(Date deadline) throws InterruptedException;
 
     /**
-     * Wakes up one waiting thread.
+     * 唤醒一个wait在该信号量上的线程.
      *
      * <p>If any threads are waiting on this condition then one
      * is selected for waking up. That thread must then re-acquire the
@@ -468,7 +469,7 @@ public interface Condition {
     void signal();
 
     /**
-     * Wakes up all waiting threads.
+     * 唤醒所有wait在该信号量上的线程.
      *
      * <p>If any threads are waiting on this condition then they are
      * all woken up. Each thread must re-acquire the lock before it can

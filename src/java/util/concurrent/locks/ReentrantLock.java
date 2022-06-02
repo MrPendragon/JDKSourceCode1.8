@@ -105,13 +105,13 @@ import java.util.Collection;
  */
 public class ReentrantLock implements Lock, java.io.Serializable {
     private static final long serialVersionUID = 7373984872572414699L;
-    /** Synchronizer providing all implementation mechanics */
+    /** 由 Sync 实现具体的同步逻辑 */
     private final Sync sync;
 
     /**
-     * Base of synchronization control for this lock. Subclassed
-     * into fair and nonfair versions below. Uses AQS state to
-     * represent the number of holds on the lock.
+     * 实现锁同步功能的具体对象<br>
+     * 分为公平和非公平版本。
+     * <br>Uses AQS state to represent the number of holds on the lock.
      */
     abstract static class Sync extends AbstractQueuedSynchronizer {
         private static final long serialVersionUID = -5179523762034025860L;
@@ -123,8 +123,9 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         abstract void lock();
 
         /**
-         * Performs non-fair tryLock.  tryAcquire is implemented in
-         * subclasses, but both need nonfair try for trylock method.
+         *  以非公平的方式获取锁<br>
+         * tryAcquire在子类中实现，但两者都需要非空的trylock方法
+         * <br>tryAcquire is implemented in subclasses, but both need nonfair try for trylock method.
          */
         final boolean nonfairTryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
@@ -249,34 +250,22 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         }
     }
 
-    /**
-     * Creates an instance of {@code ReentrantLock}.
-     * This is equivalent to using {@code ReentrantLock(false)}.
-     */
+
     public ReentrantLock() {
         sync = new NonfairSync();
     }
 
-    /**
-     * Creates an instance of {@code ReentrantLock} with the
-     * given fairness policy.
-     *
-     * @param fair {@code true} if this lock should use a fair ordering policy
-     */
     public ReentrantLock(boolean fair) {
         sync = fair ? new FairSync() : new NonfairSync();
     }
 
     /**
-     * Acquires the lock.
+     * 获取锁<br>
      *
-     * <p>Acquires the lock if it is not held by another thread and returns
-     * immediately, setting the lock hold count to one.
-     *
-     * <p>If the current thread already holds the lock then the hold
-     * count is incremented by one and the method returns immediately.
-     *
-     * <p>If the lock is held by another thread then the
+     * <li>如果锁闲置：获取该锁并立即返回，将锁持有计数设置为 1
+     * <li>如果当前线程已经持有锁：将持有计数 +1，并且方法立即返回。
+     * <li>如果锁由其他线程持有：出于线程调度目的，当前线程将被禁用，并处于伪休眠状态，直到获得锁为止，此时锁持有计数设置为1。
+     *     <p>If the lock is held by another thread then the
      * current thread becomes disabled for thread scheduling
      * purposes and lies dormant until the lock has been acquired,
      * at which time the lock hold count is set to one.
@@ -501,16 +490,13 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
-     * Queries the number of holds on this lock by the current thread.
+     * 获取当前线程持有该锁的计数（当前线程进入该锁的次数）
      *
      * <p>A thread has a hold on a lock for each lock action that is not
      * matched by an unlock action.
      *
-     * <p>The hold count information is typically only used for testing and
-     * debugging purposes. For example, if a certain section of code should
-     * not be entered with the lock already held then we can assert that
-     * fact:
-     *
+     * <p>获取持锁计数信息通常只用于调试和测试。
+     * <p>例如，如果某段代码不应在已持有锁的情况下执行，那么可以这样断言：
      *  <pre> {@code
      * class X {
      *   ReentrantLock lock = new ReentrantLock();
@@ -526,22 +512,17 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      *   }
      * }}</pre>
      *
-     * @return the number of holds on this lock by the current thread,
-     *         or zero if this lock is not held by the current thread
+     * @return 当前线程进入锁的计数；<br>
+     *          如果当前线程未持有该锁 就返回 0
      */
     public int getHoldCount() {
         return sync.getHoldCount();
     }
 
     /**
-     * Queries if this lock is held by the current thread.
-     *
-     * <p>Analogous to the {@link Thread#holdsLock(Object)} method for
-     * built-in monitor locks, this method is typically used for
-     * debugging and testing. For example, a method that should only be
-     * called while a lock is held can assert that this is the case:
-     *
-     *  <pre> {@code
+     * 判断当前线程是否持有该锁（该方法通常用于调试 和 测试）
+     * <p>例如：如果只能在持有锁时调用某个方法，可以这写：
+     * <pre> {@code
      * class X {
      *   ReentrantLock lock = new ReentrantLock();
      *   // ...
@@ -552,15 +533,14 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      *   }
      * }}</pre>
      *
-     * <p>It can also be used to ensure that a reentrant lock is used
-     * in a non-reentrant manner, for example:
-     *
-     *  <pre> {@code
+     * <p>还可用于确保以非重入方式使用锁，例如：
+     * <pre> {@code
      * class X {
      *   ReentrantLock lock = new ReentrantLock();
      *   // ...
      *
      *   public void m() {
+     *       //没有持有锁时才会往下执行
      *       assert !lock.isHeldByCurrentThread();
      *       lock.lock();
      *       try {
@@ -579,22 +559,17 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
-     * Queries if this lock is held by any thread. This method is
-     * designed for use in monitoring of the system state,
-     * not for synchronization control.
+     * 判断锁当前是否被某个线程持有<br>
+     * 此方法是为了用于监视系统状态，而不是用于同步状态控制
      *
-     * @return {@code true} if any thread holds this lock and
-     *         {@code false} otherwise
+     * @return <li>true: 任一线程持有该锁
+     *         <li>false: 锁处于闲置状态
      */
     public boolean isLocked() {
         return sync.isLocked();
     }
 
-    /**
-     * Returns {@code true} if this lock has fairness set true.
-     *
-     * @return {@code true} if this lock has fairness set true
-     */
+
     public final boolean isFair() {
         return sync instanceof FairSync;
     }
@@ -746,12 +721,9 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
-     * Returns a string identifying this lock, as well as its lock state.
-     * The state, in brackets, includes either the String {@code "Unlocked"}
-     * or the String {@code "Locked by"} followed by the
-     * {@linkplain Thread#getName name} of the owning thread.
-     *
-     * @return a string identifying this lock, as well as its lock state
+     * 输出锁当前的状态
+     * <li> 锁闲置：[Unlocked]
+     * <li> 锁占用：[Locked by thread {threadName}]"
      */
     public String toString() {
         Thread o = sync.getOwner();

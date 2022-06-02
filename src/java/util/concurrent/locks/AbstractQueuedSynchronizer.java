@@ -666,6 +666,7 @@ public abstract class AbstractQueuedSynchronizer
                 if (t.waitStatus <= 0)
                     s = t;
         }
+
         if (s != null)
             LockSupport.unpark(s.thread);
     }
@@ -754,7 +755,7 @@ public abstract class AbstractQueuedSynchronizer
 
         node.thread = null;
 
-        // Skip cancelled predecessors
+        // 向前遍历，移除前面的无效状态的节点
         Node pred = node.prev;
         while (pred.waitStatus > 0)
             node.prev = pred = pred.prev;
@@ -792,13 +793,17 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * Checks and updates status for a node that failed to acquire.
-     * Returns true if thread should block. This is the main signal
-     * control in all acquire loops.  Requires that pred == node.prev.
+     *
+     * 检查并更新未能获取的节点的状态<br>
+     * 如果线程可以被park，则返回true。这是整个获取环路的主要控制信号<br>
+     * 1、当前驱节点是 SIGNAL 状态，表示该节点可以被 park;<br>
+     * 2、当前驱节点是 无效状态，则将当前节点重新连接到一个有效节点后;<br>
+     * 3、当前驱节点是 其他状态时，则将其的状态设置为 SIGNAL （变成情况 1）
      *
      * @param pred node's predecessor holding status
      * @param node the node
-     * @return {@code true} if thread should block
+     * @return true: 表示当前节点的线程能被park;<br>
+     *         false: 当前节点的线程还不能被 park (返回false 的话外层会继续调这个方法)
      */
     private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
         int ws = pred.waitStatus;
@@ -808,10 +813,12 @@ public abstract class AbstractQueuedSynchronizer
              * 所以当前节点可以安全地被 park
              */
             return true;
+
         if (ws > 0) {
             /*
-             * 如果前驱节点是无效状态，则跳过它而向前遍历，
+             * 如果前驱节点是无效状态，则跳过它并向前遍历，
              * 直到找到一个有效的节点，将其作为新的前驱节点
+             * （即：把中间失效状态的节点都从队列中剔除了，把当前节点及后的队列接到一个有效的节点上，确保之后能被唤醒）
              */
             do {
                 node.prev = pred = pred.prev;
@@ -819,12 +826,15 @@ public abstract class AbstractQueuedSynchronizer
 
             pred.next = node;
 
-        } else {
+        } else {//waitStatus 一定是 0 或 PROPAGATE
             /*
-             * waitStatus must be 0 or PROPAGATE.
              * Indicate that we need a signal, but don't park yet.
              * Caller will need to retry to make sure it cannot acquire before parking.
+             *
              */
+
+            //将当前节点的前驱节点设置为设置为 SIGNAL 状态（因为只有 SIGNAL 的节点在释放锁后才会唤醒它的后继节点）
+            //执行到这返回false，外层会继续循环调用这个方法，直到前驱节点变为 SIGNAL，返回true
             compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
         }
         return false;
@@ -839,7 +849,6 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * park 当前线程，并返回中断标记的状态
-     *
      * @return {@code true} if interrupted
      */
     private final boolean parkAndCheckInterrupt() {
@@ -858,7 +867,8 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * 独占模式下，通过自旋的方式获取锁<br>
-     * Acquires in exclusive uninterruptible mode for thread already in
+     * 没到获取时机 or 获取失败时会被park
+     * <br>Acquires in exclusive uninterruptible mode for thread already in
      * queue. Used by condition wait methods as well as acquire.
      *
      * @param node the node
@@ -880,7 +890,7 @@ public abstract class AbstractQueuedSynchronizer
                     return interrupted;
                 }
 
-                //如果前驱节点不是头节点，或获取同步状态失败的情况
+                //如果前驱节点不是头节点，或者获取同步状态失败的情况
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     parkAndCheckInterrupt())
                     interrupted = true;
@@ -892,7 +902,8 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * Acquires in exclusive interruptible mode.
+     * 独占模式——自旋——可中断的方式获取锁
+     * <br>Acquires in exclusive interruptible mode.
      * @param arg the acquire argument
      */
     private void doAcquireInterruptibly(int arg) throws InterruptedException {
@@ -919,7 +930,6 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Acquires in exclusive timed mode.
-     *
      * @param arg the acquire argument
      * @param nanosTimeout max wait time
      * @return {@code true} if acquired
@@ -944,6 +954,7 @@ public abstract class AbstractQueuedSynchronizer
                 if (nanosTimeout <= 0L) {
                     return false;
                 }
+
                 if (shouldParkAfterFailedAcquire(p, node) &&
                     nanosTimeout > spinForTimeoutThreshold) {
 
@@ -995,8 +1006,7 @@ public abstract class AbstractQueuedSynchronizer
      * Acquires in shared interruptible mode.
      * @param arg the acquire argument
      */
-    private void doAcquireSharedInterruptibly(int arg)
-        throws InterruptedException {
+    private void doAcquireSharedInterruptibly(int arg) throws InterruptedException {
         final Node node = addWaiter(Node.SHARED);
         boolean failed = true;
         try {
@@ -1028,8 +1038,7 @@ public abstract class AbstractQueuedSynchronizer
      * @param nanosTimeout max wait time
      * @return {@code true} if acquired
      */
-    private boolean doAcquireSharedNanos(int arg, long nanosTimeout)
-            throws InterruptedException {
+    private boolean doAcquireSharedNanos(int arg, long nanosTimeout) throws InterruptedException {
         if (nanosTimeout <= 0L)
             return false;
         final long deadline = System.nanoTime() + nanosTimeout;
@@ -1065,7 +1074,7 @@ public abstract class AbstractQueuedSynchronizer
     // Main exported methods
 
     /**
-     * 独占模式-尝试获取锁<br>
+     * <font color='red'>*须重写*</font>独占模式-尝试获取锁<br>
      * 此方法应查询对象的状态是否允许以独占模式获取对象，如果允许，则应获取对象。
      * This method should query if the state of the object permits it to be acquired in the
      * exclusive mode, and if so to acquire it.
@@ -1076,8 +1085,6 @@ public abstract class AbstractQueuedSynchronizer
      * signalled by a release from some other thread. This can be used
      * to implement method {@link Lock#tryLock()}.
      *
-     * <p>The default
-     * implementation throws {@link UnsupportedOperationException}.
      *
      * @param arg the acquire argument. This value is always the one
      *        passed to an acquire method, or is the value saved on entry
@@ -1096,13 +1103,9 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * Attempts to set the state to reflect a release in exclusive
-     * mode.
+     *  <font color='red'>*须重写*</font>独占模式-尝试释放锁<br>
      *
      * <p>This method is always invoked by the thread performing release.
-     *
-     * <p>The default implementation throws
-     * {@link UnsupportedOperationException}.
      *
      * @param arg the release argument. This value is always the one
      *        passed to a release method, or the current state value upon
