@@ -155,17 +155,16 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
  */
 public class Semaphore implements java.io.Serializable {
     private static final long serialVersionUID = -3222578661600680210L;
-    /** All mechanics via AbstractQueuedSynchronizer subclass */
+    /** 所有的逻辑都通过 AQS 的子类实现 */
     private final Sync sync;
 
-    /**
-     * Synchronization implementation for semaphore.  Uses AQS state
-     * to represent permits. Subclassed into fair and nonfair
-     * versions.
-     */
     abstract static class Sync extends AbstractQueuedSynchronizer {
         private static final long serialVersionUID = 1192457210091910933L;
 
+        /**
+         *  构造函数
+         * @param permits 共享资源的初始值（共享锁的数量）
+         */
         Sync(int permits) {
             setState(permits);
         }
@@ -215,9 +214,8 @@ public class Semaphore implements java.io.Serializable {
         }
     }
 
-    /**
-     * NonFair version
-     */
+
+
     static final class NonfairSync extends Sync {
         private static final long serialVersionUID = -2694183684443567898L;
 
@@ -230,9 +228,8 @@ public class Semaphore implements java.io.Serializable {
         }
     }
 
-    /**
-     * Fair version
-     */
+
+
     static final class FairSync extends Sync {
         private static final long serialVersionUID = 2014338818796000944L;
 
@@ -253,29 +250,11 @@ public class Semaphore implements java.io.Serializable {
         }
     }
 
-    /**
-     * Creates a {@code Semaphore} with the given number of
-     * permits and nonfair fairness setting.
-     *
-     * @param permits the initial number of permits available.
-     *        This value may be negative, in which case releases
-     *        must occur before any acquires will be granted.
-     */
     public Semaphore(int permits) {
         sync = new NonfairSync(permits);
     }
 
-    /**
-     * Creates a {@code Semaphore} with the given number of
-     * permits and the given fairness setting.
-     *
-     * @param permits the initial number of permits available.
-     *        This value may be negative, in which case releases
-     *        must occur before any acquires will be granted.
-     * @param fair {@code true} if this semaphore will guarantee
-     *        first-in first-out granting of permits under contention,
-     *        else {@code false}
-     */
+
     public Semaphore(int permits, boolean fair) {
         sync = fair ? new FairSync(permits) : new NonfairSync(permits);
     }
@@ -610,10 +589,8 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
-     * Returns the current number of permits available in this semaphore.
-     *
-     * <p>This method is typically used for debugging and testing purposes.
-     *
+     * 返回当前可用的许可量
+     * <p>此方法通常用于调试和测试
      * @return the number of permits available in this semaphore
      */
     public int availablePermits() {
@@ -621,8 +598,7 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
-     * Acquires and returns all permits that are immediately available.
-     *
+     * 获取剩余的全部许可，并返回获取到的许可数量
      * @return the number of permits acquired
      */
     public int drainPermits() {
@@ -644,11 +620,6 @@ public class Semaphore implements java.io.Serializable {
         sync.reducePermits(reduction);
     }
 
-    /**
-     * Returns {@code true} if this semaphore has fairness set true.
-     *
-     * @return {@code true} if this semaphore has fairness set true
-     */
     public boolean isFair() {
         return sync instanceof FairSync;
     }
@@ -694,13 +665,6 @@ public class Semaphore implements java.io.Serializable {
         return sync.getQueuedThreads();
     }
 
-    /**
-     * Returns a string identifying this semaphore, as well as its state.
-     * The state, in brackets, includes the String {@code "Permits ="}
-     * followed by the number of permits.
-     *
-     * @return a string identifying this semaphore, as well as its state
-     */
     public String toString() {
         return super.toString() + "[Permits = " + sync.getPermits() + "]";
     }
